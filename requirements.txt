@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+gunicorn
+pydantic[email]
+psycopg2
+sqlalchemy
+passlib
+boto3
+python-slugify
+python-dotenv
