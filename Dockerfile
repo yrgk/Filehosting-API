@@ -1,9 +1,6 @@
 FROM python:3.12
 
-WORKDIR /src
-
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+WORKDIR /app
 
 COPY requirements.txt .
 
@@ -11,4 +8,4 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-CMD uvicorn main:app --host 127.0.0.1:8000
+CMD gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:800

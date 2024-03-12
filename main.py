@@ -28,7 +28,7 @@ def register_user(data: UserAdd, db: Session = Depends(get_db)):
     user1 = db.query(User).filter(User.name == data.name).first()
     user2 = db.query(User).filter(User.email == data.email).first()
     if user1 or user2:
-        return {"message": "User with this email or username already exists"}
+        raise HTTPException(status_code=409, detail={"status_code": 409, "message": "User with this email or username already exists"})
     else:
         hashed_password = pwd_context.hash(data.password)
         user = User(
@@ -48,12 +48,12 @@ def whoami(username: str, password: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.name == username and User.password == password).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="user does not exist")
+        raise HTTPException(status_code=401, detail={"status_code": 401, "message": "user does not exist"})
 
     is_password_correct = pwd_context.verify(password, user.password)
 
     if not is_password_correct:
-        raise HTTPException(status_code=403, detail="incorrect password or username")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect password or username"})
 
     return user.api_key
 
@@ -63,10 +63,10 @@ def whoami(username: str, password: str, db: Session = Depends(get_db)):
 @app.post('/repositories/create', response_model=RepositoryItem)
 def create_repository(api_key: str, name: str, db: Session = Depends(get_db)):
     if db.query(Repository).filter(Repository.view_name == name).first():
-        HTTPException(status_code=403, detail="incorrect api key")
+        HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
     user = db.query(User).filter(User.api_key == api_key).first()
     if user == None:
-        raise HTTPException(status_code=403, detail="incorrect api key")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
     rep_name = f'filehosting-litix-{slugify(user.name)}-{slugify(name)}'
     s3.create_bucket(Bucket=rep_name)
@@ -87,10 +87,10 @@ def create_repository(api_key: str, name: str, db: Session = Depends(get_db)):
 @app.get('/repository/all', response_model=list[RepositoryItem])
 def repository_list(api_key: str, skip: int = 0, limit: int = 100,db: Session = Depends(get_db)):
     if db.query(User).filter(User.api_key == api_key).first() == None:
-        raise HTTPException(status_code=403, detail="incorrect api key")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
     if limit < 0:
-        raise HTTPException(status_code=404, detail="limit less than 0")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "limit less than 0"})
 
     return db.query(Repository).filter(Repository.user_api_key == api_key).offset(skip).limit(limit).all()
 
@@ -100,7 +100,7 @@ def get_repository(link: str, db: Session = Depends(get_db)):
 
     repository = db.query(Repository).filter(Repository.link == link).first()
     if repository == None:
-        raise HTTPException(status_code=404, detail="repository does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
     files = db.query(File).filter(File.rep_id == repository.id).all()
 
@@ -112,10 +112,10 @@ def delete_repository(api_key: str, link: str, db: Session = Depends(get_db)):
     rep = db.query(Repository).filter(Repository.link == link).first()
 
     if rep == None:
-        return HTTPException(status_code=404, detail="repository does not exist")
+        return HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
     if rep.user_api_key != api_key:
-        raise HTTPException(status_code=403, detail="incorrect api key")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
 
     files = db.query(File).filter(File.rep_id == rep.id)
@@ -142,10 +142,10 @@ def add_file(api_key: str, link: str, file: UploadFile, db: Session = Depends(ge
     rep = db.query(Repository).filter(Repository.link == link).first()
 
     if rep == None:
-        raise HTTPException(status_code=404, detail="repository does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
     if rep.user_api_key != api_key:
-        raise HTTPException(status_code=403, detail="incorrect api key")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
 
     file_name = slugify(file.filename)
@@ -169,17 +169,17 @@ def remove_file(api_key: str, bucket_name: str, name: str, db: Session = Depends
     user = db.query(User).filter(User.api_key == api_key).first()
 
     if user == None:
-        raise HTTPException(status_code=403, detail="incorrect api key")
+        raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
     bucket = f"filehosting-litix-{user.name}-{bucket_name}"
     rep = db.query(Repository).filter(Repository.name == bucket).first()
     file = db.query(File).filter(File.view_name == name)
 
     if rep == None:
-        raise HTTPException(status_code=404, detail="repository does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
     if file.first() == None:
-        raise HTTPException(status_code=404, detail="file does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "file does not exist"})
 
     s3.delete_object(Bucket=bucket, Key=name)
     file = file
@@ -195,10 +195,10 @@ def download_file(link: str, name: str, db: Session = Depends(get_db)):
     bucket = db.query(Repository).filter(Repository.link == link).first()
 
     if file_name == None:
-        raise HTTPException(status_code=404, detail="file does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "file does not exist"})
 
     if bucket == None:
-        raise HTTPException(status_code=404, detail="repository does not exist")
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
     content = s3.get_object(Bucket=bucket.name, Key=file_name.view_name)['Body'].read()
 

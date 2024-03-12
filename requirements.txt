@@ -8,3 +8,4 @@ passlib
 boto3
 python-slugify
 python-dotenv
+python-multipart

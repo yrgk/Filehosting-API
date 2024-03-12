@@ -21,9 +21,9 @@ session = boto3.Session(
     region_name=REGION_NAME,
     )
 
-
 s3 = session.client(
     service_name='s3',
     endpoint_url=ENDPOINT_URL
 )
+
 s3_resource = boto3.resource('s3')
