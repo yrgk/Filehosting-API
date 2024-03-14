@@ -6,8 +6,8 @@ from passlib.context import CryptContext
 
 from database import Base, get_db, engine
 from models import File, Repository, User
-from script import create_url_or_api_key, s3
-from schemas import FileItem, RepositoryItem, UserAdd, OneRepository
+from script import create_postfix, s3
+from schemas import FileItem, RepositoryItem, RepositoryListItem, UserAdd, OneRepository
 
 
 app = FastAPI()
@@ -35,12 +35,12 @@ def register_user(data: UserAdd, db: Session = Depends(get_db)):
             email=data.email,
             name=data.name,
             password=hashed_password,
-            api_key=create_url_or_api_key(50)
+            api_key=create_postfix(50)
         )
         db.add(user)
         db.commit()
 
-        return {"message": "success", "api_key": user.api_key}
+        return {"status_code": 200, "message": "success", "api_key": user.api_key}
 
 
 @app.get('/get-api-key')
@@ -55,12 +55,12 @@ def whoami(username: str, password: str, db: Session = Depends(get_db)):
     if not is_password_correct:
         raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect password or username"})
 
-    return user.api_key
+    return {"api_key": user.api_key}
 
 
 
 ## Repositories operations
-@app.post('/repositories/create', response_model=RepositoryItem)
+@app.post('/repository/create', response_model=RepositoryItem)
 def create_repository(api_key: str, name: str, db: Session = Depends(get_db)):
     if db.query(Repository).filter(Repository.view_name == name).first():
         HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
@@ -74,7 +74,7 @@ def create_repository(api_key: str, name: str, db: Session = Depends(get_db)):
     rep = Repository(
         view_name=name,
         name=rep_name,
-        link=create_url_or_api_key(30),
+        link=create_postfix(30),
         user_api_key=api_key
     )
     db.add(rep)
@@ -84,7 +84,7 @@ def create_repository(api_key: str, name: str, db: Session = Depends(get_db)):
     return rep
 
 
-@app.get('/repository/all', response_model=list[RepositoryItem])
+@app.get('/repository/all', response_model=list[RepositoryListItem])
 def repository_list(api_key: str, skip: int = 0, limit: int = 100,db: Session = Depends(get_db)):
     if db.query(User).filter(User.api_key == api_key).first() == None:
         raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
@@ -92,22 +92,21 @@ def repository_list(api_key: str, skip: int = 0, limit: int = 100,db: Session = 
     if limit < 0:
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "limit less than 0"})
 
-    return db.query(Repository).filter(Repository.user_api_key == api_key).offset(skip).limit(limit).all()
+    return db.query(Repository.id, Repository.link, Repository.view_name).filter(Repository.user_api_key == api_key).offset(skip).limit(limit).all()
 
 
 @app.get('/repository/{link}', response_model=OneRepository)
 def get_repository(link: str, db: Session = Depends(get_db)):
-
     repository = db.query(Repository).filter(Repository.link == link).first()
     if repository == None:
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
-    files = db.query(File).filter(File.rep_id == repository.id).all()
+    files = db.query(File).filter(File.repository_link == repository.link).all()
 
-    return {"name": repository.view_name, "files": files}
+    return {"status_code": 200, "name": repository.view_name, "files": files}
 
 
-@app.delete('/repositories/delete')
+@app.delete('/repository/delete')
 def delete_repository(api_key: str, link: str, db: Session = Depends(get_db)):
     rep = db.query(Repository).filter(Repository.link == link).first()
 
@@ -117,22 +116,23 @@ def delete_repository(api_key: str, link: str, db: Session = Depends(get_db)):
     if rep.user_api_key != api_key:
         raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
-
-    files = db.query(File).filter(File.rep_id == rep.id)
+    files = db.query(File).filter(File.repository_link == rep.link)
 
     files.delete(synchronize_session=False)
     db.delete(rep)
     db.commit()
 
-    try:
-        file_list = s3.list_objects(Bucket=rep.name)["Contents"]
-        for file in file_list:
-            s3.delete_object(Bucket=rep.name, Key=file["Key"])
-        s3.delete_bucket(Bucket=rep.name)
-    except:
-        s3.delete_bucket(Bucket=rep.name)
+    rep_name = rep.name
 
-    return "success"
+    try:
+        file_list = s3.list_objects(Bucket=rep_name)["Contents"]
+        for file in file_list:
+            s3.delete_object(Bucket=rep_name, Key=file["Key"])
+        s3.delete_bucket(Bucket=rep_name)
+    except:
+        s3.delete_bucket(Bucket=rep_name)
+
+    return {"status_code": 200, "message": "success"}
 
 
 
@@ -147,16 +147,18 @@ def add_file(api_key: str, link: str, file: UploadFile, db: Session = Depends(ge
     if rep.user_api_key != api_key:
         raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
+    if file:
+        raise HTTPException(status_code=409, detail="file is already uploaded")
 
-    file_name = slugify(file.filename)
-    url = f'/file/read?link={rep.link}&name={file.filename}'
+    filename = file.filename
 
-    s3.upload_fileobj(file.file, Bucket=rep.name, Key=file.filename)
+    view_name = slugify(filename)
+
+    s3.upload_fileobj(file.file, Bucket=rep.name, Key=filename)
     newfile = File(
-        view_name=file.filename,
-        name=file_name,
-        download_link=url,
-        rep_id=rep.id
+        view_name=filename,
+        name=view_name,
+        repository_link=link
     )
     db.add(newfile)
     db.commit()
@@ -182,30 +184,29 @@ def remove_file(api_key: str, bucket_name: str, name: str, db: Session = Depends
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "file does not exist"})
 
     s3.delete_object(Bucket=bucket, Key=name)
-    file = file
     file.delete()
     db.commit()
 
-    return "success"
+    return {"status_code": 200, "message": "success"}
 
 
-@app.get('/file/read')
+@app.get('/file/download')
 def download_file(link: str, name: str, db: Session = Depends(get_db)):
-    file_name = db.query(File).filter(File.view_name == name).first()
+    file = db.query(File).filter(File.name == name).first()
     bucket = db.query(Repository).filter(Repository.link == link).first()
 
-    if file_name == None:
+    if file == None:
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "file does not exist"})
 
     if bucket == None:
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
-    content = s3.get_object(Bucket=bucket.name, Key=file_name.view_name)['Body'].read()
+    content = s3.get_object(Bucket=bucket.name, Key=file.view_name)['Body'].read()
 
     return Response(
         content=content,
         headers={
-            'Content-Disposition': f'attachment;filename={file_name.view_name}',
+            'Content-Disposition': f'attachment;filename={file.name}',
             'Content-Type': 'application/octet-stream',
             'Access-Control-Expose-Headers': 'Content-Disposition',
         }

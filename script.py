@@ -8,11 +8,11 @@ from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, ENDPOI
 
 db = session()
 
-def create_url_or_api_key(length: int):
+def create_postfix(length: int):
     postfix =  ''.join(choice(string.ascii_letters + string.digits) for _ in range(length))
     if postfix not in db.query(Repository.link).all():
         return postfix
-    create_url_or_api_key()
+    create_postfix()
 
 
 session = boto3.Session(

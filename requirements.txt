@@ -6,6 +6,7 @@ psycopg2
 sqlalchemy
 passlib
 boto3
+bcrypt
 python-slugify
 python-dotenv
 python-multipart

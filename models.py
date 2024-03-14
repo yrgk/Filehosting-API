@@ -30,5 +30,5 @@ class File(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, unique=True, nullable=False)
     view_name = Column(String, index=True, nullable=False)
     name = Column(String, index=True, unique=True, nullable=False)
-    download_link = Column(Text, unique=True, nullable=False)
-    rep_id = Column(Integer, ForeignKey('Repository.id'))
+    repository_link = Column(Text, ForeignKey('Repository.link'))
+    # rep_id = Column(Integer, ForeignKey('Repository.id'))

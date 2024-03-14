@@ -20,12 +20,17 @@ class RepositoryItem(BaseModel):
     user_api_key: str
 
 
+class RepositoryListItem(BaseModel):
+    id: int
+    view_name: str
+    link: str
+
+
 class FileItem(BaseModel):
     id: int
     view_name: str
     name: str
-    download_link: str
-    rep_id: int
+    repository_link: str
 
 
 class OneRepository(BaseModel):
