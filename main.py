@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 
 
 from database import Base, get_db, engine
-from models import File, Repository, User
+from models import User, Repository, File
 from script import create_postfix, s3
 from schemas import FileItem, RepositoryItem, RepositoryListItem, UserAdd, OneRepository
 
@@ -147,11 +147,12 @@ def add_file(api_key: str, link: str, file: UploadFile, db: Session = Depends(ge
     if rep.user_api_key != api_key:
         raise HTTPException(status_code=403, detail={"status_code": 403, "message": "incorrect api key"})
 
-    if file:
+    exists_file = db.query(File).filter(File.view_name == file.filename).first()
+
+    if exists_file:
         raise HTTPException(status_code=409, detail="file is already uploaded")
 
     filename = file.filename
-
     view_name = slugify(filename)
 
     s3.upload_fileobj(file.file, Bucket=rep.name, Key=filename)

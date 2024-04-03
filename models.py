@@ -20,7 +20,7 @@ class Repository(Base):
     view_name = Column(String, index=True, nullable=False)
     name = Column(String, index=True, unique=True, nullable=False)
     link = Column(Text, unique=True, nullable=False)
-    user_api_key = Column(String, ForeignKey('User.api_key'))
+    user_api_key = Column(Text, ForeignKey('User.api_key'))
 
     files = relationship('File', backref='repository')
 
@@ -31,4 +31,3 @@ class File(Base):
     view_name = Column(String, index=True, nullable=False)
     name = Column(String, index=True, unique=True, nullable=False)
     repository_link = Column(Text, ForeignKey('Repository.link'))
-    # rep_id = Column(Integer, ForeignKey('Repository.id'))
