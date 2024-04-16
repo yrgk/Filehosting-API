@@ -202,7 +202,10 @@ def download_file(link: str, name: str, db: Session = Depends(get_db)):
     if bucket == None:
         raise HTTPException(status_code=404, detail={"status_code": 404, "message": "repository does not exist"})
 
-    content = s3.get_object(Bucket=bucket.name, Key=file.view_name)['Body'].read()
+    try:
+        content = s3.get_object(Bucket=bucket.name, Key=file.view_name)['Body'].read()
+    except:
+        raise HTTPException(status_code=404, detail={"status_code": 404, "message": "file does not exist"})
 
     return Response(
         content=content,
